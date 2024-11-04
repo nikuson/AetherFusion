@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Параметры модели
+# Model parameters
 batch_size = 64
 image_size = 32
 num_classes = 10
@@ -16,7 +16,7 @@ learning_rate = 1e-4
 embedding_dim = 128
 num_heads = 4
 
-# Загрузка CIFAR-10
+# Load CIFAR-10
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -38,7 +38,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         return x + self.pe[:, :x.size(1), :].to(x.device)
 
-# Блок многоголовой самовнимательности
+# Multi-head self-attention block
 class TransformerBlock(nn.Module):
     def __init__(self, embedding_dim, num_heads):
         super(TransformerBlock, self).__init__()
@@ -58,12 +58,12 @@ class TransformerBlock(nn.Module):
         x = self.norm2(x + ff_output)
         return x
 
-# Определение улучшенной архитектуры U-Net с трансформером
+# Define the improved U-Net architecture with attention
 class UNetWithAttention(nn.Module):
     def __init__(self, in_channels, out_channels, embedding_dim, num_heads):
         super(UNetWithAttention, self).__init__()
         
-        # Входной блок
+        # Input block
         self.enc1 = nn.Sequential(
             nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
             nn.ReLU(),
@@ -71,7 +71,7 @@ class UNetWithAttention(nn.Module):
             nn.ReLU()
         )
         
-        # Encoder (снижаем разрешение)
+        # Encoder (downsampling)
         self.enc2 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
@@ -79,10 +79,10 @@ class UNetWithAttention(nn.Module):
             nn.ReLU()
         )
         
-        # Блок многоголовой самовнимательности
+        # Multi-head self-attention block
         self.transformer = TransformerBlock(embedding_dim, num_heads)
         
-        # Decoder (увеличиваем разрешение)
+        # Decoder (upsampling)
         self.dec1 = nn.Sequential(
             nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
@@ -90,27 +90,28 @@ class UNetWithAttention(nn.Module):
             nn.ReLU()
         )
         
-        # Выходной блок
+        # Output block
         self.final = nn.Conv2d(64, out_channels, kernel_size=1)
     
     def forward(self, x):
-        # Проходим через энкодер
+        # Pass through encoder
         enc1 = self.enc1(x)
         enc2 = self.enc2(enc1)
         
-        # Применяем трансформерный блок
+        # Apply transformer block
         transformer_input = enc2.flatten(2).permute(2, 0, 1)
         transformer_output = self.transformer(transformer_input)
         enc2 = transformer_output.permute(1, 2, 0).view(enc2.size())
         
-        # Декодер
+        # Decoder
         dec1 = self.dec1(enc2)
         
-        # Соединяем с исходными данными и применяем выходной блок
+        # Combine with original data and apply final output block
         out = self.final(dec1 + enc1)
         
         return out
 
+# Embedding and U-Net integration
 class DiffusionTransformerUNet(nn.Module):
     def __init__(self, image_size, num_classes, embedding_dim, num_heads):
         super(DiffusionTransformerUNet, self).__init__()
@@ -118,27 +119,27 @@ class DiffusionTransformerUNet(nn.Module):
         self.position_encoding = PositionalEncoding(embedding_dim)
         self.unet = UNetWithAttention(3, 3, embedding_dim, num_heads)
         
-        # Линейное преобразование для приведения к размеру входного изображения
+        # Linear transformation to match input image size
         self.label_projection = nn.Linear(embedding_dim, 3)
 
     def forward(self, x, labels):
-        # Получаем эмбеддинг метки и проецируем его в нужное количество каналов (3)
+        # Get label embedding and project to match input image channels (3)
         label_embedding = self.embedding(labels)  # (batch_size, embedding_dim)
         label_embedding = self.label_projection(label_embedding).unsqueeze(-1).unsqueeze(-1)
         
-        # Расширяем эмбеддинг метки до размеров изображения
+        # Expand label embedding to image size
         label_embedding = label_embedding.expand(-1, -1, x.size(2), x.size(3))
         
-        # Добавляем эмбеддинг метки ко входному изображению
+        # Add label embedding to input image
         x = x + label_embedding
         return self.unet(x)
 
-# Инициализация модели, функции потерь и оптимизатора
+# Initialize model, loss function, and optimizer
 model = DiffusionTransformerUNet(image_size, num_classes, embedding_dim, num_heads).cuda()
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-# Функция обучения
+# Training function
 def train(model, trainloader, criterion, optimizer, num_epochs):
     model.train()
     for epoch in range(num_epochs):
@@ -156,21 +157,10 @@ def train(model, trainloader, criterion, optimizer, num_epochs):
         
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(trainloader):.4f}")
 
-# Запуск обучения
+# Start training
 train(model, trainloader, criterion, optimizer, num_epochs)
 
-# Функция для отображения изображений
-def show_images(images, num_images=10, cols=5):
-    plt.figure(figsize=(15, 5))
-    for i in range(num_images):
-        plt.subplot(num_images // cols + 1, cols, i + 1)
-        image = images[i].squeeze(0).permute(1, 2, 0).cpu().numpy()
-        image = (image * 0.5 + 0.5)  # Денормализация для отображения
-        plt.imshow(image)
-        plt.axis('off')
-    plt.show()
-
-# Функция генерации изображений
+# Generate images function
 def generate_images(model, num_samples=10):
     model.eval()
     samples = []
@@ -182,6 +172,23 @@ def generate_images(model, num_samples=10):
         samples.append(generated_image)
     return samples
 
-# Генерация и отображение изображений
+# Function to display images
+def show_images(images, num_images=10, cols=5):
+    plt.figure(figsize=(15, 5))
+    for i in range(num_images):
+        plt.subplot(num_images // cols + 1, cols, i + 1)
+        image = images[i].squeeze(0).permute(1, 2, 0).cpu().numpy()
+        
+        # Denormalize for display
+        image = (image * 0.5 + 0.5)  # Bringing values to range [0, 1]
+        
+        # Clip values to prevent warnings
+        image = np.clip(image, 0, 1)  # Limit values in range [0, 1]
+        
+        plt.imshow(image)
+        plt.axis('off')
+    plt.show()
+
+# Generate and display images
 samples = generate_images(model, num_samples=10)
 show_images(samples)
