@@ -71,6 +71,7 @@ The `generate_images` function generates images conditioned on random CIFAR-10 l
 - **Fine-tuning on Larger Datasets**: Experiment with datasets beyond CIFAR-10 for higher resolution outputs.
 - **Enhanced Conditioning**: Investigate additional conditioning techniques for finer control over generated outputs.
 
+Colab: https://colab.research.google.com/drive/1ZfRtg2kotM4FMD7QLU_kHJgqbgT5soy7?usp=sharing
 ---
 
 ## License
