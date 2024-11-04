@@ -12,6 +12,7 @@ This repository provides a **Diffusion Transformer U-Net** model designed for im
 - Python 3.7+
 - PyTorch
 - torchvision
+- matplotlib
 
 Install the necessary libraries:
 ```bash
@@ -54,43 +55,12 @@ The `generate_images` function generates images conditioned on random CIFAR-10 l
    samples = generate_images(model, num_samples=10)
    ```
 
-## Code
-
-### `DiffusionTransformerUNet`
-
-```python
-class DiffusionTransformerUNet(nn.Module):
-    def __init__(self, image_size, num_classes, embedding_dim, num_heads):
-        super(DiffusionTransformerUNet, self).__init__()
-        self.embedding = nn.Embedding(num_classes, embedding_dim)
-        self.position_encoding = PositionalEncoding(embedding_dim)
-        self.unet = UNetWithAttention(3, 3, embedding_dim, num_heads)
-        
-        # Linear transformation to match image channel dimensions
-        self.label_projection = nn.Linear(embedding_dim, 3)
-
-    def forward(self, x, labels):
-        # Embedding label to match image dimensions
-        label_embedding = self.embedding(labels)
-        label_embedding = self.label_projection(label_embedding).unsqueeze(-1).unsqueeze(-1)
-        
-        # Expanding label embedding to image size
-        label_embedding = label_embedding.expand(-1, -1, x.size(2), x.size(3))
-        
-        # Adding label embedding to input image
-        x = x + label_embedding
-        return self.unet(x)
-```
-
----
-
 ## Repository Structure
 
 ```plaintext
 .
 ├── data                # Folder for the CIFAR-10 dataset
-├── models              # Folder containing model architectures
-├── train.py            # Script to train the model
+├── aetherfusion.py     # model
 ├── generate.py         # Script to generate images
 └── README.md           # Documentation and usage
 ```
